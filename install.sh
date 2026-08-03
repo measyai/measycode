@@ -51,19 +51,44 @@ mkdir -p "$PREFIX"
 
 tmp="$(mktemp)"
 trap 'rm -f "$tmp"' EXIT
-curl -fsSL "$url" -o "$tmp"
 
-hash_url="${base}/${file}.sha256"
-if hash="$(curl -fsSL "$hash_url" 2>/dev/null)"; then
-  expected="${hash%% *}"
-  if command -v sha256sum >/dev/null 2>&1; then
-    actual="$(sha256sum "$tmp" | awk '{print $1}')"
-  else
-    actual="$(shasum -a 256 "$tmp" | awk '{print $1}')"
-  fi
-  if [ "$actual" != "$expected" ]; then
-    echo "error: checksum mismatch" >&2
-    exit 1
+if command -v curl >/dev/null 2>&1; then
+  curl -sSL "$url" -o "$tmp" || { echo "error: curl download failed (was it killed by OOM?)" >&2; exit 1; }
+elif command -v wget >/dev/null 2>&1; then
+  wget -qO "$tmp" "$url" || { echo "error: wget download failed" >&2; exit 1; }
+else
+  echo "error: neither curl nor wget found" >&2
+  exit 1
+fi
+
+if [ ! -s "$tmp" ]; then
+  echo "error: downloaded file is empty. Release asset might be missing." >&2
+  exit 1
+fi
+
+# Try to verify checksum using SHA256SUMS
+hash_url="${base}/SHA256SUMS"
+sums_tmp="$(mktemp)"
+trap 'rm -f "$tmp" "$sums_tmp"' EXIT
+
+if command -v curl >/dev/null 2>&1; then
+  curl -sSL "$hash_url" -o "$sums_tmp" 2>/dev/null || true
+elif command -v wget >/dev/null 2>&1; then
+  wget -qO "$sums_tmp" "$hash_url" 2>/dev/null || true
+fi
+
+if [ -s "$sums_tmp" ]; then
+  expected="$(grep "$file" "$sums_tmp" | awk '{print $1}' || true)"
+  if [ -n "$expected" ]; then
+    if command -v sha256sum >/dev/null 2>&1; then
+      actual="$(sha256sum "$tmp" | awk '{print $1}')"
+    else
+      actual="$(shasum -a 256 "$tmp" | awk '{print $1}')"
+    fi
+    if [ "$actual" != "$expected" ]; then
+      echo "error: checksum mismatch" >&2
+      exit 1
+    fi
   fi
 fi
 
