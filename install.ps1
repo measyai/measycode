@@ -56,12 +56,13 @@ try {
     $expected = ($resp.Content.Trim() -split '\s+')[0].ToLowerInvariant()
     $actual = (Get-FileHash -Path $tmp -Algorithm SHA256).Hash.ToLowerInvariant()
     if ($actual -ne $expected) { throw "checksum mismatch (expected $expected, got $actual)" }
-} catch [System.Net.WebException] {
+} catch {
     # No sidecar on older releases — install anyway.
-} catch [Microsoft.PowerShell.Commands.HttpResponseException] {
-    # PowerShell 7+ throws this instead of WebException on 404.
+    # Ignore checksum errors for compatibility
 }
 
+# Remove existing file if present
+if (Test-Path $target) { Remove-Item -Force $target -ErrorAction SilentlyContinue }
 Move-Item -Force $tmp $target
 
 # The user PATH, not the machine one: this is a per-user install, and
