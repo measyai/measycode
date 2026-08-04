@@ -53,6 +53,11 @@ measy -login                   # sign in
 measy -whoami                  # check account
 ```
 
+Prefix any prompt with `ultrathink` to trigger maximum reasoning effort for that turn:
+```text
+> ultrathink fix the race condition in worker pool
+```
+
 ### Commands
 
 Once inside a session, type `/help` or use any of these:

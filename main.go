@@ -224,8 +224,21 @@ func main() {
 			continue
 		}
 
+		// Ultrathink: if the message starts with "ultrathink" (case-insensitive),
+		// strip the keyword and enable extended reasoning for this turn.
+		ultra := false
+		if trimmed, found := stripUltrathink(input); found {
+			ultra = true
+			input = trimmed
+			if input == "" {
+				notice("ultrathink needs a message after it")
+				continue
+			}
+			note(cRun, "✻", "ultrathink on for this turn")
+		}
+
 		history = append(history, measyai.Message{Role: "user", Content: input})
-		if err := turn(client, current, &history); err != nil {
+		if err := turn(client, current, &history, ultra); err != nil {
 			say("  " + paint(cErr, "✗ "+err.Error()))
 		}
 		say("")
@@ -246,6 +259,21 @@ func splitCommand(input string) (verb, arg string, ok bool) {
 	}
 	verb, arg, _ = strings.Cut(input, " ")
 	return verb, strings.TrimSpace(arg), true
+}
+
+// stripUltrathink detects when the user prefixes a message with "ultrathink"
+// (case-insensitive). Returns the remaining message and true if the prefix
+// was present. Works like Claude Code's ultrathink keyword.
+func stripUltrathink(input string) (string, bool) {
+	const keyword = "ultrathink"
+	lower := strings.ToLower(input)
+	if lower == keyword {
+		return "", true
+	}
+	if strings.HasPrefix(lower, keyword+" ") {
+		return strings.TrimSpace(input[len(keyword):]), true
+	}
+	return input, false
 }
 
 // usage prints what is left of the rolling allowance. Split out from
@@ -359,7 +387,8 @@ func loadEnv(path string) {
 }
 
 // turn runs the model until it stops asking for tools.
-func turn(client *measyai.Client, model string, history *[]measyai.Message) error {
+func turn(client *measyai.Client, model string, history *[]measyai.Message, ultrathink ...bool) error {
+	ultra := len(ultrathink) > 0 && ultrathink[0]
 	started, tokens, retries := time.Now(), 0, 0
 
 	// Unbounded by design: the loop runs until the model stops asking for
@@ -368,7 +397,7 @@ func turn(client *measyai.Client, model string, history *[]measyai.Message) erro
 		// Per-turn signal handling: ctrl-c aborts the reply in flight, and at
 		// the prompt it falls back to Go's default handler and exits.
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-		reply, err := generate(ctx, client, model, *history)
+		reply, err := generate(ctx, client, model, *history, ultra)
 		interrupted := ctx.Err() != nil
 		stop()
 		tokens += reply.tokens
@@ -426,17 +455,28 @@ type reply struct {
 
 // generate streams one completion, printing prose as it arrives and assembling
 // any tool calls the model requested.
-func generate(ctx context.Context, client *measyai.Client, model string, history []measyai.Message) (reply, error) {
-	sp := startSpinner("thinking")
+func generate(ctx context.Context, client *measyai.Client, model string, history []measyai.Message, ultrathink ...bool) (reply, error) {
+	ultra := len(ultrathink) > 0 && ultrathink[0]
+
+	label := "thinking"
+	if ultra {
+		label = "ultrathinking"
+	}
+	sp := startSpinner(label)
 	defer sp.Stop()
+
+	extra := map[string]any{
+		"tools":       json.RawMessage(toolSchema),
+		"tool_choice": "auto",
+	}
+	if ultra {
+		extra["reasoning_effort"] = "max"
+	}
 
 	stream, err := client.Chat.Stream(ctx, measyai.ChatRequest{
 		Model:    model,
 		Messages: history,
-		Extra: map[string]any{
-			"tools":       json.RawMessage(toolSchema),
-			"tool_choice": "auto",
-		},
+		Extra:    extra,
 	})
 	if err != nil {
 		return reply{}, err

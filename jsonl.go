@@ -133,11 +133,17 @@ func runJSONL(creds *credentials, model, cwd string, history *[]measyai.Message)
 				emit(event{Kind: "auth_required", Text: "Sign in to continue."})
 				continue
 			}
-			emit(event{Kind: "user", Text: c.Text})
-			*history = append(*history, measyai.Message{Role: "user", Content: c.Text})
+			promptText := c.Text
+			ultra := false
+			if trimmed, found := stripUltrathink(promptText); found {
+				ultra = true
+				promptText = trimmed
+			}
+			emit(event{Kind: "user", Text: promptText})
+			*history = append(*history, measyai.Message{Role: "user", Content: promptText})
 
 			emit(event{Kind: "turn_start"})
-			if err := turn(client, model, history); err != nil {
+			if err := turn(client, model, history, ultra); err != nil {
 				emit(event{Kind: "error", Text: err.Error()})
 			}
 			emit(event{Kind: "turn_end"})
