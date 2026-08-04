@@ -13,8 +13,8 @@ import (
 )
 
 // version is stamped into the banner, the user agent and the approval
-// screen's client name, so a support question can start from a number.
-const version = "1.0.0"
+// events we log. It is bumped manually when releasing.
+const version = "1.0.3"
 
 // Palette. Kept as raw SGR codes so paint stays a single string concat.
 const (
