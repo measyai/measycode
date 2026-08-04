@@ -14,7 +14,7 @@ import (
 
 // version is stamped into the banner, the user agent and the approval
 // events we log. It is bumped manually when releasing.
-const version = "1.0.3"
+const version = "1.0.4"
 
 // Palette. Kept as raw SGR codes so paint stays a single string concat.
 const (
