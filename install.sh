@@ -104,13 +104,33 @@ echo
 case ":$PATH:" in
   *":$PREFIX:"*) ;;
   *)
-    echo "  $PREFIX is not on your PATH. Add this to your shell profile:"
+    # Detect shell profile and add PATH automatically
+    case "${SHELL##*/}" in
+      fish)
+        fish_add_path "$PREFIX" 2>/dev/null || true
+        echo "  Added $PREFIX to your fish PATH."
+        ;;
+      zsh)
+        profile="$HOME/.zshrc"
+        echo "export PATH=\"$PREFIX:\$PATH\"" >> "$profile"
+        echo "  Added $PREFIX to $profile"
+        ;;
+      *)
+        profile="$HOME/.bashrc"
+        echo "export PATH=\"$PREFIX:\$PATH\"" >> "$profile"
+        echo "  Added $PREFIX to $profile"
+        ;;
+    esac
+    echo
+    echo "  To use measy now, run:"
     echo
     case "${SHELL##*/}" in
-      fish) echo "    fish_add_path $PREFIX" ;;
-      zsh)  echo "    echo 'export PATH=\"$PREFIX:\$PATH\"' >> ~/.zshrc" ;;
-      *)    echo "    echo 'export PATH=\"$PREFIX:\$PATH\"' >> ~/.bashrc" ;;
+      fish) echo "    exec fish" ;;
+      zsh)  echo "    source ~/.zshrc" ;;
+      *)    echo "    source ~/.bashrc" ;;
     esac
+    echo
+    echo "  Or just open a new terminal."
     echo
     ;;
 esac
