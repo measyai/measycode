@@ -8,7 +8,7 @@ import (
 // systemPrompt is deliberately short: the tools describe themselves through
 // their JSON schemas, so this only has to set the working style.
 func systemPrompt(dir string) string {
-	return fmt.Sprintf(promptTemplate, runtime.GOOS, runtime.GOARCH, shellName(), dir)
+	return fmt.Sprintf(promptTemplate, runtime.GOOS, runtime.GOARCH, shellName(), dir) + instructionsBlock(dir)
 }
 
 const promptTemplate = `You are measycode, a coding agent working in a real terminal on a real filesystem.

@@ -14,7 +14,7 @@ import (
 
 // version is stamped into the banner, the user agent and the approval
 // events we log. It is bumped manually when releasing.
-const version = "1.0.4"
+const version = "1.1.0"
 
 // Palette. Kept as raw SGR codes so paint stays a single string concat.
 const (
@@ -356,6 +356,21 @@ func banner(modelID, cwd string, creds *credentials) {
 	if g := gitInfo(cwd); g != nil {
 		lines = append(lines, dim("  "+g.line()))
 	}
+	// Connected MCP servers belong in the banner: they change what the
+	// agent can do as much as the model does.
+	if mcpReg != nil && len(mcpReg.tools) > 0 {
+		var servers []string
+		seen := map[string]bool{}
+		for _, ref := range mcpReg.tools {
+			if !seen[ref.server] {
+				seen[ref.server] = true
+				servers = append(servers, ref.server)
+			}
+		}
+		sortStrings(servers)
+		lines = append(lines, dim(fmt.Sprintf("  mcp      %d tools · %s",
+			len(mcpReg.tools), strings.Join(servers, ", "))))
+	}
 
 	// Which account is paying for this session is worth its own line: the
 	// same binary is routinely run against a personal account and a work one.
@@ -552,6 +567,7 @@ func helpText() {
 			{"/approval", "approval mode (currently " + mode.String() + ")"},
 			{"/auto", "jump to Developer mode and back"},
 			{"/think", "reasoning mode (currently " + onOff(showThinking) + ")"},
+			{"/mcp", "MCP server status"},
 			{"/reset", "clear conversation"},
 		}},
 		{"General", [][2]string{

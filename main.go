@@ -50,6 +50,16 @@ func main() {
 		die(err.Error())
 	}
 
+	// MCP servers are configured per workspace (plus a user-level file), so
+	// they connect after the workspace is known and before the banner draws:
+	// the banner line "3 MCP tools from github" is part of what "where is
+	// this session pointed" means.
+	mcpReg = mcpRegistryFromWorkspace(cwd)
+	defer mcpReg.closeAll()
+	for name, ferr := range mcpReg.failed {
+		notice(fmt.Sprintf("MCP server %s failed: %v", name, ferr))
+	}
+
 	if picked, ok := parseApprovalMode(*approval); ok {
 		mode = picked
 	}
@@ -209,6 +219,10 @@ func main() {
 		case "/think":
 			showThinking = !showThinking
 			say(dim("  thinking " + onOff(showThinking)))
+			say("")
+			continue
+		case "/mcp":
+			mcpStatus()
 			say("")
 			continue
 		case "/help":
@@ -466,7 +480,7 @@ func generate(ctx context.Context, client *measyai.Client, model string, history
 	defer sp.Stop()
 
 	extra := map[string]any{
-		"tools":       json.RawMessage(toolSchema),
+		"tools":       spliceToolSchema(),
 		"tool_choice": "auto",
 	}
 	if ultra {

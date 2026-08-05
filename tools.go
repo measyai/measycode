@@ -71,6 +71,11 @@ type toolArgs struct {
 // model. A tool failure is a result, not an error: the model reads it and
 // adjusts, which is the whole point of the loop.
 func execTool(ctx context.Context, tc measyai.ToolCall) string {
+	// MCP tools get their own dispatch: the built-in toolArgs struct knows
+	// nothing about them, and their arguments are passed through verbatim.
+	if mcpReg != nil && strings.HasPrefix(tc.Function.Name, "mcp_") {
+		return execMCPTool(ctx, tc)
+	}
 	var args toolArgs
 	if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
 		toolStart(cErr, tc.Function.Name, "?")
@@ -83,6 +88,38 @@ func execTool(ctx context.Context, tc measyai.ToolCall) string {
 		return "ERROR: " + err.Error()
 	}
 	return out
+}
+
+// execMCPTool gates the call by approval mode and forwards it to the owning
+// server. Because a mutating MCP tool cannot be told from a read-only one,
+// Safe and Balanced both ask first — the one exception is Developer mode.
+func execMCPTool(ctx context.Context, tc measyai.ToolCall) string {
+	detail := compactJSON(tc.Function.Arguments, 200)
+	toolStart(cRun, tc.Function.Name, detail)
+	if !approve(tc.Function.Name, detail) {
+		return "ERROR: " + errDenied.Error()
+	}
+	out, err := mcpReg.call(ctx, tc.Function.Name, json.RawMessage(tc.Function.Arguments))
+	if err != nil {
+		toolResult(cErr, err.Error())
+		return "ERROR: " + err.Error()
+	}
+	if strings.HasPrefix(out, "ERROR: ") {
+		toolResult(cErr, "tool reported an error")
+	} else {
+		toolResult(cOK, fmt.Sprintf("%d bytes returned", len(out)))
+	}
+	toolBody(out, 12)
+	return out
+}
+
+// compactJSON single-lines arguments for the one-line tool display.
+func compactJSON(s string, max int) string {
+	s = strings.Join(strings.Fields(s), " ")
+	if len(s) > max {
+		return s[:max-1] + "…"
+	}
+	return s
 }
 
 func dispatch(ctx context.Context, name string, a toolArgs) (string, error) {

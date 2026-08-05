@@ -70,8 +70,49 @@ Once inside a session, type `/help` or use any of these:
 | `/approval safe\|balanced\|developer` | Change approval mode |
 | `/usage` | Token consumption |
 | `/think` | Toggle chain-of-thought |
+| `/mcp` | MCP server status |
 | `/reset` | Clear conversation |
 | `/exit` | Quit |
+
+### Project Instructions
+
+Drop a `MEASY.md` (or `AGENTS.md`, or `.measycode/instructions.md`) into your project root and measycode reads it into every session — build commands, style rules, off-limits areas:
+
+```markdown
+# My Project
+
+## Build
+- Always run `make test` before declaring a change done.
+- Use `pnpm`, not `npm`.
+
+## Style
+- Prefer `pathlib.Path` over `os.path`.
+```
+
+First match wins: `MEASY.md` → `AGENTS.md` → `.measycode/instructions.md`. Files are capped at 20,000 characters.
+
+### MCP Servers
+
+Connect MCP servers to give the agent tools beyond the built-in five. Configure in `~/.measycode/config.json` (user-level, every workspace) or `<project>/.measycode/config.json` (project-level, wins per server name):
+
+```json
+{
+  "mcp_servers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_..." }
+    },
+    "company_api": {
+      "url": "https://mcp.internal.company.com/mcp",
+      "headers": { "Authorization": "Bearer sk-..." },
+      "timeout": 180
+    }
+  }
+}
+```
+
+Tools appear as `mcp_<server>_<tool>` and ask for approval like any write (auto-approved only in Developer mode). Server subprocesses receive a filtered environment — secrets stay out unless explicitly passed via `env`. Check `/mcp` for connection status.
 
 ### Approval Modes
 
